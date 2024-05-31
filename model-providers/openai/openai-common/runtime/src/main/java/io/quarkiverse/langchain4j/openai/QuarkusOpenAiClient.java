@@ -14,6 +14,9 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import jakarta.enterprise.inject.Instance;
+import jakarta.enterprise.inject.literal.NamedLiteral;
+import jakarta.enterprise.inject.spi.CDI;
 import jakarta.ws.rs.client.ClientRequestContext;
 import jakarta.ws.rs.client.ClientRequestFilter;
 
@@ -113,6 +116,21 @@ public class QuarkusOpenAiClient extends OpenAiClient {
                         });
                     }
 
+                    OpenAiRestApi.DynamicAuthorizer authorizer;
+                    Instance<OpenAiRestApi.DynamicAuthorizer> beanInstance = builder.modelName == null
+                            ? CDI.current().select(OpenAiRestApi.DynamicAuthorizer.class)
+                            : CDI.current().select(OpenAiRestApi.DynamicAuthorizer.class, NamedLiteral.of(builder.modelName));
+
+                    authorizer = beanInstance
+                            .handlesStream()
+                            .findFirst()
+                            .map(Instance.Handle::get)
+                            .orElse(null);
+
+                    if (authorizer != null) {
+                        var filterProvider = new OpenAiRestApi.OpenAIRestAPIFilter(authorizer);
+                        restApiBuilder.register(filterProvider);
+                    }
                     return restApiBuilder.build(OpenAiRestApi.class);
                 } catch (URISyntaxException e) {
                     throw new RuntimeException(e);
@@ -515,6 +533,7 @@ public class QuarkusOpenAiClient extends OpenAiClient {
 
         private String userAgent;
         private String azureAdToken;
+        private String modelName;
 
         public Builder userAgent(String userAgent) {
             this.userAgent = userAgent;
@@ -523,6 +542,11 @@ public class QuarkusOpenAiClient extends OpenAiClient {
 
         public Builder azureAdToken(String azureAdToken) {
             this.azureAdToken = azureAdToken;
+            return this;
+        }
+
+        public Builder configName(String modelName) {
+            this.modelName = modelName;
             return this;
         }
 
@@ -564,14 +588,15 @@ public class QuarkusOpenAiClient extends OpenAiClient {
                             builder.writeTimeout)
                     && Objects.equals(proxy, builder.proxy)
                     && Objects.equals(azureAdToken, builder.azureAdToken)
-                    && Objects.equals(userAgent, builder.userAgent);
+                    && Objects.equals(userAgent, builder.userAgent)
+                    && Objects.equals(modelName, builder.modelName);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(baseUrl, apiVersion, openAiApiKey, azureApiKey, organizationId, callTimeout, connectTimeout,
                     readTimeout,
-                    writeTimeout, proxy, logRequests, logResponses, logStreamingResponses, userAgent, azureAdToken);
+                    writeTimeout, proxy, logRequests, logResponses, logStreamingResponses, userAgent, azureAdToken, modelName);
         }
     }
 

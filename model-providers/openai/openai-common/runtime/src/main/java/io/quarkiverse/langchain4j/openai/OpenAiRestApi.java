@@ -38,6 +38,8 @@ import org.jboss.resteasy.reactive.RestStreamElementType;
 import org.jboss.resteasy.reactive.client.SseEvent;
 import org.jboss.resteasy.reactive.client.SseEventFilter;
 import org.jboss.resteasy.reactive.client.api.ClientLogger;
+import org.jboss.resteasy.reactive.client.spi.ResteasyReactiveClientRequestContext;
+import org.jboss.resteasy.reactive.client.spi.ResteasyReactiveClientRequestFilter;
 import org.jboss.resteasy.reactive.common.providers.serialisers.AbstractJsonMessageBodyReader;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -176,6 +178,23 @@ public interface OpenAiRestApi {
         @Override
         public boolean test(SseEvent<String> event) {
             return !"[DONE]".equals(event.data());
+        }
+    }
+
+    interface DynamicAuthorizer {
+        String getAuthorization();
+    }
+
+    class OpenAIRestAPIFilter implements ResteasyReactiveClientRequestFilter {
+        DynamicAuthorizer authorizer;
+
+        public OpenAIRestAPIFilter(DynamicAuthorizer authorizer) {
+            this.authorizer = authorizer;
+        }
+
+        @Override
+        public void filter(ResteasyReactiveClientRequestContext requestContext) {
+            requestContext.getHeaders().putSingle("Authorization", authorizer.getAuthorization());
         }
     }
 
